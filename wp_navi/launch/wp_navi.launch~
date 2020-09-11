@@ -1,0 +1,12 @@
+<launch>
+  <arg name="x" default="0" doc="X coordinate of the destination goal [m]."/>
+  <arg name="y" default="0" doc="Y coordinate of the destination goal [m]."/>
+  <arg name="Y" default="0" doc="Yaw angle of the destination goal [degrees]."/>
+
+  <arg name="robot_id" default="$(optenv ID 1)"      doc="Unique identifier of the robot [1-Inf.)"/>
+  <arg name="ns"       value="create$(arg robot_id)" doc="Namespace of the robot. By default: create1."/>
+
+  <node pkg="wp_navi" type="wp_navi.py" name="wp_navi"
+        ns="$(arg ns)" output="screen"
+        args="$(arg x) $(arg y) $(arg Y)"/>
+</launch>

@@ -1,0 +1,65 @@
+!/usr/bin/env python
+# -*- coding: utf-8 -*- # 日本語を使うためのおまじない。
+import rospy  # ROSでpython使う場合に必要
+from geometry_msgs.msg import Twist # ロボットの速度を扱う場合は必要
+
+
+# set_vel関数：速度の設定。
+# １番目の引数は速度メッセージ、２番目の引数は並進速度、３番目の引数は角速度
+def set_vel(vel_msg, lv, av):
+    vel_msg.linear.x  = lv
+    vel_msg.linear.y  = 0
+    vel_msg.linear.z  = 0
+    vel_msg.angular.x = 0
+    vel_msg.angular.y = 0
+    vel_msg.angular.z = av
+
+# main_loop関数
+def main_loop():
+    #  ノードの初期化。引数はノード名。ROSでは同じノード名のノードを複数作ることはできない。
+    rospy.init_node('move')
+
+    # パブリッシャーの生成。一番目の引数はトピック名、２番目の引数はメッセージの型、
+    # 速度指令はTwist型。３番目の引数はメッセージバッファーのサイズ。
+    vel_publisher = rospy.Publisher('/create1/cmd_vel', Twist, queue_size=10)
+
+    # vel_magオフジェクトの生成
+    vel_msg = Twist()
+
+    # 速度の初期化。安全のために0に設定。
+    set_vel(vel_msg, 0, 0)
+    
+    # キーボードからの入力
+    print("Let's move your robot")
+    linear_vel  = input("Input linear velocity [m/s] :")
+    angular_vel = input("Input angular velocity [rad/s] :")
+
+    #　並進速度または角速度の設定rospy.is_shutdown():
+    #  ROS座標系は右手系、ロボットの前進方向がX軸、右方向がy軸、上方向がz軸
+    vel_msg.linear.x  = linear_vel
+    vel_msg.angular.z = angular_vel
+
+    # ループの周期を設定。10Hz。つまり、1ループ100ms。
+    # ロボットを一定の周期で動かすことはとても重要
+    rate = rospy.Rate(10) 
+    
+    # Ctrl-Cが押されるまで無限ループ
+    while not rospy.is_shutdown():
+        # メッセージを配信する。つまり、ロボットに速度指令を送る。
+        vel_publisher.publish(vel_msg)
+
+        # 表示。
+        rospy.loginfo("Velocity: Linear=%s Angular=%s", vel_msg.linear.x, vel_msg.angular.z)
+        
+        # rospy.Rate()で指定した時間になるように調整してくれる。
+        rate.sleep()
+
+# このプログラムをモジュールとしてimportできるようにするおまじない。
+# なお、モジュールとは他のプログラムから再利用できるようにしたファイルのこと。
+if __name__ == '__main__':
+    # 例外処理。rospy.ROSInterruptExceptionを捕まえる。
+    # この例外はCrl+cキーが押されるときに発生するので、
+    # この例外処理によりこのノードが終了する。
+    try:
+        main_loop()
+    except rospy.ROSInterruptException: pass

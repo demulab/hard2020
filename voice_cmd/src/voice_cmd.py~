@@ -1,0 +1,141 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import sys, copy, rospy, time
+import subprocess, ngram
+import numpy as np
+from std_msgs.msg import String
+from speech_recognition_msgs.msg import SpeechRecognitionCandidates
+from geometry_msgs.msg import Twist 
+
+class VoiceCmd:
+
+    # コンストラクタ
+    def __init__(self):
+        rospy.init_node('voice_cmd',anonymous=True)  # ノードの初期化                              
+        
+        self.LINEAR_VEL       = 0.2 # 基準の並進速度 [m/s]
+        self.ANGULAR_VEL      = 0.1 # 基準の角速度 [rad/s]
+        self.recog_transcript = []  # 認識結果
+        self.cmd_all_no       = 5   # 全コマンド数
+        self.order_no         = 3   # 命令の回数
+        self.answer_count     = 0   # 回答数
+        self.vel_msg = Twist()      # 速度
+        
+        # コマンド
+        self.cmd_all = [
+            "go", #1
+            "stop", #2
+            "back", #3
+            "right", #4
+            "left" #5
+        ]
+
+  
+        # subscriber
+        rospy.Subscriber('/create1/speech_result',SpeechRecognitionCandidates, self.speech_recog_cb)
+    
+        # publisher
+        self.speak_pub = rospy.Publisher('/tts', String, queue_size=10)
+        self.cmd_pub   = rospy.Publisher('/create1/cmd_vel', Twist, queue_size=10)
+
+        # ウエルカムメッセージ
+        time.sleep(1) # この間を入れないと次の文を発話しない
+        self.speak("Hellow! I am happy robot. Please command me after a beep sound.", 8)
+
+
+    # 音声認識コールバック関数。認識した結果が引数recogに入る。
+    def speech_recog_cb(self,recog):
+        self.recog_transcript = recog.transcript # 認識結果の文
+        self.confidence       = recog.confidence # 認識結果の信頼度
+
+
+    # 発話
+    def speak(self, sentence, sleep_time=3.5):
+        self.speak_pub.publish(sentence)
+        time.sleep(sleep_time) # pubulishした後に少しスリープが必要。秒数は調整すること
+        
+    # 速度の設定
+    def set_vel(self, lv, av):
+        self.vel_msg.linear.x  = lv
+        self.vel_msg.linear.y  = 0
+        self.vel_msg.linear.z  = 0
+        self.vel_msg.angular.x = 0
+        self.vel_msg.angular.y = 0
+        self.vel_msg.angular.z = av
+
+
+    # 移動
+    def move(self):
+        self.cmd_pub.publish(self.vel_msg)
+        
+    # ビープ音
+    def beep(self):
+        time.sleep(0.3)
+        args = ['/usr/bin/paplay', '/usr/share/sounds/freedesktop/stereo/complete.oga']
+        subprocess.call(args)
+
+
+    #　メイン関数
+    def main(self):
+        rate = rospy.Rate(1)
+
+        time.sleep(1)       # 少し間を置く [s]
+        voice_cmd.beep() # 回答を促すビープ音
+
+        while not rospy.is_shutdown():
+            max_k   = 0
+            max_no  = 0
+            max_val = 0
+
+            time.sleep(1)
+            rospy.loginfo(self.recog_transcript)
+
+            if len(self.recog_transcript) > 0: # 音声認識結果がある場合だけ処理。
+                flag = False
+                for i in range(0, self.cmd_all_no):
+                    for k in range(0, len(self.recog_transcript)):
+                        rospy.loginfo(self.recog_transcript[0])
+                        if self.recog_transcript[k] == self.cmd_all[i]:
+                            max_no  = i
+                            flag = True
+                            break
+                    if flag == True:
+                        break
+                    
+                self.speak('Your order is', 2)
+                self.speak(self.cmd_all[max_no], 5)
+                rospy.loginfo("order[%d]:%s",max_no, self.cmd_all[max_no])
+                print(self.confidence)
+
+                if self.cmd_all[max_no] == "go":
+                    self.set_vel(self.LINEAR_VEL,  0)
+                    self.move()
+                elif self.cmd_all[max_no] == "stop":
+                    self.set_vel(0, 0)
+                    self.move()
+                elif self.cmd_all[max_no] == "back":
+                    self.set_vel(-self.Linear_vel, 0)
+                    self.move()
+                elif self.cmd_all[max_no] == "right":
+                    self.set_vel(0, -self.ANGULAR_VEL)
+                    self.move()
+                elif self.cmd_all[max_no] == "left":
+                    self.set_vel(0, self.ANGULAR_VEL)
+                    self.move()
+                else:
+                    rospy.loginfo("Voice command error !")
+                
+                del self.recog_transcript[:]
+
+            rate.sleep()
+            
+
+if __name__ == '__main__':
+    try:
+        voice_cmd = VoiceCmd()
+        voice_cmd.main()
+    except rospy.ROSInterruptException: pass
+    
+    
+

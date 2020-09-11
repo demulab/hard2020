@@ -1,0 +1,81 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+<xacro:macro name="battery_sensor"
+             params="name:=battery parent:=base_footprint namespace:=create
+                     voltage capacity_ah charge_current discharge_current
+                     *origin">
+
+  <xacro:include filename="$(find ca_description)/urdf/utils/inertias.xacro"/>
+  <xacro:include filename="$(find ca_description)/urdf/utils/conversions.xacro"/>
+
+  <xacro:property name="parent_link" value="${parent}"/>
+  <xacro:property name="link_name"   value="${name}_link"/>
+  <xacro:property name="dummy_link"  value="${link_name}_dummy"/>
+
+  <xacro:property name="mass"        value="1"/>
+  <xacro:property name="size_x_in"   value="2.2"/>
+  <xacro:property name="size_y_in"   value="5.7"/>
+  <xacro:property name="size_z_in"   value="2.5"/>
+
+  <joint name="${name}_joint" type="fixed">
+    <xacro:insert_block name="origin"/>
+    <parent link="${parent_link}"/>
+    <child link="${link_name}"/>
+  </joint>
+
+  <link name="${link_name}">
+    <xacro:inertial_cuboid mass="${mass}"
+                           x_length="${size_x_in*in_to_m}"
+                           y_length="${size_y_in*in_to_m}"
+                           z_length="${size_z_in*in_to_m}"/>
+    <visual>
+      <geometry>
+        <box size="${size_x_in*in_to_m} ${size_y_in*in_to_m} ${size_z_in*in_to_m}"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <joint name="${name}_dummy_joint" type="continuous">
+    <parent link="${parent_link}"/>
+    <child link="${dummy_link}"/>
+  </joint>
+
+  <link name="${dummy_link}">
+    <xacro:dummy_inertia/>
+  </link>
+
+  <gazebo reference="${link_name}">
+    <material>Gazebo/ZincYellow</material>
+  </gazebo>
+
+  <gazebo reference="${dummy_link}">
+    <battery name="${name}">
+      <voltage>${voltage}</voltage>
+    </battery>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="battery_discharge" filename="libbattery_discharge.so">
+      <ros_node>${namespace}</ros_node>
+      <link_name>${dummy_link}</link_name>
+      <battery_name>${name}</battery_name>
+      <constant_coef>${voltage}</constant_coef>
+      <linear_coef>${-voltage/4}</linear_coef>
+      <initial_charge>${capacity_ah}</initial_charge>
+      <capacity>${capacity_ah}</capacity>
+      <resistance>0.061523</resistance>
+      <smooth_current_tau>1.9499</smooth_current_tau>
+      <charge_rate>${charge_current}</charge_rate>
+    </plugin>
+
+    <plugin name="battery_consumer" filename="libbattery_consumer.so">
+      <link_name>${dummy_link}</link_name>
+      <battery_name>${name}</battery_name>
+      <power_load>${discharge_current * voltage}</power_load>
+    </plugin>
+  </gazebo>
+
+</xacro:macro>
+
+</robot>
